@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -11,8 +11,12 @@
   "dependencies": {
     "@mantine/core": "7.17.2",
     "@mantine/hooks": "7.17.2",
+    "@tabler/icons-react": "^3.31.0",
+    "ansi-to-react": "^6.1.6",
+    "lucide-react": "^0.483.0",
     "next": "15.2.3",
     "react": "19.0.0",
+    "react-contenteditable": "^3.3.7",
     "react-dom": "19.0.0"
   },
   "devDependencies": {

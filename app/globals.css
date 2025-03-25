@@ -1,0 +1,20 @@
+.ansi-1 { font-weight: bold !important; }
+.ansi-4 { text-decoration: underline !important; }
+
+.ansi-30 { color: #4f545c !important; }
+.ansi-31 { color: #dc322f !important; }
+.ansi-32 { color: #859900 !important; }
+.ansi-33 { color: #b58900 !important; }
+.ansi-34 { color: #268bd2 !important; }
+.ansi-35 { color: #d33682 !important; }
+.ansi-36 { color: #2aa198 !important; }
+.ansi-37 { color: #ffffff !important; }
+
+.ansi-40 { background-color: #002b36 !important; }
+.ansi-41 { background-color: #cb4b16 !important; }
+.ansi-42 { background-color: #586e75 !important; }
+.ansi-43 { background-color: #657b83 !important; }
+.ansi-44 { background-color: #839496 !important; }
+.ansi-45 { background-color: #6c71c4 !important; }
+.ansi-46 { background-color: #93a1a1 !important; }
+.ansi-47 { background-color: #fdf6e3 !important; }
