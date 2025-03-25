@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useRef, useEffect } from "react";
 import { Container, Stack, Paper } from "@mantine/core";
@@ -13,7 +13,6 @@ import { COLORS } from "../lib/utils";
 const styleFix = `
   .ansi-1 { font-weight: bold !important; }
   .ansi-4 { text-decoration: underline !important; }
-  [class^="ansi-"] { color: #ffffff; }
   ${COLORS.foreground
     .map(
       (c) => `
@@ -37,12 +36,35 @@ export default function Home() {
   const [copyStatus, setCopyStatus] = useState(
     "Copy text as Discord formatted"
   );
-  const contentEditableRef = useRef(null);
+  const contentEditableRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const styleTag = document.createElement("style");
+    styleTag.innerHTML = styleFix;
+    document.head.appendChild(styleTag);
+    return () => {
+      document.head.removeChild(styleTag);
+    };
+  }, []);
 
   const handleChange = (evt: any) => setHtml(evt.target.value);
-  const applyStyle = (code: any) => {
+
+  const removeConflictingAnsiClasses = (element: Element, newType: number) => {
+    Array.from(element.classList).forEach((cls) => {
+      const match = cls.match(/^ansi-(\d+)/);
+      if (match) {
+        const existingCode = parseInt(match[1]);
+        const existingType = Math.floor(existingCode / 10);
+        if (existingType === newType) {
+          element.classList.remove(cls);
+        }
+      }
+    });
+  };
+
+  const applyStyle = (code: number) => {
     const selection = window.getSelection();
-    if (!selection?.rangeCount) return;
+    if (!selection || !selection.rangeCount) return;
 
     const range = selection.getRangeAt(0);
 
@@ -56,29 +78,20 @@ export default function Home() {
     try {
       const fragment = range.extractContents();
       const span = document.createElement("span");
-      const styleType = Math.floor(code / 10);
+      const newType = Math.floor(code / 10);
 
       const walker = document.createTreeWalker(
         fragment,
         NodeFilter.SHOW_ELEMENT
       );
-      const nodesToClean = [];
-      let currentNode;
-
-      while ((currentNode = walker.nextNode())) {
-        nodesToClean.push(currentNode);
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        removeConflictingAnsiClasses(node as Element, newType);
       }
-
-      nodesToClean.forEach((node) => {
-        node.classList.forEach((className) => {
-          const match = className.match(/ansi-(\d+)/);
-          if (match) {
-            const classCode = parseInt(match[1]);
-            if (Math.floor(classCode / 10) === styleType) {
-              node.classList.remove(className);
-            }
-          }
-        });
+      Array.from(fragment.childNodes).forEach((child) => {
+        if (child.nodeType === Node.ELEMENT_NODE) {
+          removeConflictingAnsiClasses(child as Element, newType);
+        }
       });
 
       span.className = `ansi-${code}`;
@@ -88,49 +101,65 @@ export default function Home() {
       if (contentEditableRef.current) {
         setHtml(contentEditableRef.current.innerHTML);
       }
+      selection.removeAllRanges();
     } catch (error) {
       console.error("Error applying style:", error);
     }
   };
 
-  const resetAll = () => setHtml("Welcome to Discord Colored Text Generator!");
+  const resetAll = () =>
+    setHtml('Welcome to Discord Colored Text Generator!');
 
-  const nodesToANSI = (nodes: any, currentStyles = []) => {
+  const nodesToANSI = (
+    nodes: NodeList,
+    parentStyles: number[] = []
+  ): string => {
     let output = "";
-    for (const node of nodes) {
+    nodes.forEach((node) => {
       if (node.nodeType === Node.TEXT_NODE) {
         output += node.textContent;
-        continue;
-      }
-      if (node.nodeName === "BR") {
+      } else if (node.nodeName === "BR") {
         output += "\n";
-        continue;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as Element;
+        let localStyles: number[] = [];
+        let prefix = "";
+        let suffix = "";
+        if (el.tagName === "B") {
+          localStyles.push(1);
+          prefix += "\x1b[1m";
+          suffix = "\x1b[22m";
+        } else if (el.tagName === "U") {
+          localStyles.push(4);
+          prefix += "\x1b[4m";
+          suffix = "\x1b[24m";
+        } else {
+          Array.from(el.classList).forEach((cls) => {
+            const match = cls.match(/^ansi-(\d+)$/);
+            if (match) {
+              const code = parseInt(match[1]);
+              localStyles.push(code);
+              prefix += `\x1b[${code}m`;
+              suffix = "\x1b[0m";
+            }
+          });
+        }
+        const combinedStyles = [...parentStyles.filter(ps => !localStyles.some(ls => Math.floor(ps/10) === Math.floor(ls/10))), ...localStyles];
+        const inner = nodesToANSI(el.childNodes, combinedStyles);
+        output += prefix + inner + suffix;
+        if (parentStyles.length > 0) {
+          output += `\x1b[${parentStyles.join(";")}m`;
+        }
       }
-
-      const styles = new Set(currentStyles);
-      Array.from(node.classList).forEach((className) => {
-        const match = className.match(/ansi-(\d+)/);
-        if (match) styles.add(parseInt(match[1]));
-      });
-
-      const styleCodes = Array.from(styles);
-      output += `\x1b[${styleCodes.join(";")}m`;
-      output += nodesToANSI(node.childNodes, styleCodes);
-      output += `\x1b[0m`;
-      if (currentStyles.length > 0) {
-        output += `\x1b[${currentStyles.join(";")}m`;
-      }
-    }
+    });
     return output;
   };
 
   const getANSIFromHTML = () => {
     if (!contentEditableRef.current) return "";
-    return (
-      "\x1b[0m" +
-      nodesToANSI(contentEditableRef.current.childNodes) +
-      "\x1b[0m\n"
-    );
+    let result = nodesToANSI(contentEditableRef.current.childNodes);
+    result = result.replace(/(\x1b\[0m)+/g, "\x1b[0m");
+    return result.endsWith("\x1b[0m") ? result + "\n" : result + "\x1b[0m\n";
   };
 
   const copyText = async () => {
@@ -141,21 +170,10 @@ export default function Home() {
     setTimeout(() => setCopyStatus("Copy text as Discord formatted"), 2000);
   };
 
-  useEffect(() => {
-    const styleTag = document.createElement("style");
-    styleTag.innerHTML = styleFix;
-    document.head.appendChild(styleTag);
-
-    return () => {
-      document.head.removeChild(styleTag);
-    };
-  }, []);
-
   return (
     <Container size="md" py="xl">
-      <Stack gap="lg">
+      <Stack gap="xl">
         <Header />
-
         <Paper p="xl" radius="lg" withBorder shadow="xs">
           <Stack gap="lg">
             <Controls resetAll={resetAll} applyStyle={applyStyle} />
@@ -177,7 +195,6 @@ export default function Home() {
             <CopyButton copyText={copyText} status={copyStatus} />
           </Stack>
         </Paper>
-
         <Footer />
       </Stack>
     </Container>
